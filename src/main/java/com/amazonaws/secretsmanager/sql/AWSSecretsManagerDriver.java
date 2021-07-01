@@ -31,6 +31,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Enumeration;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
@@ -112,6 +113,16 @@ public abstract class AWSSecretsManagerDriver implements Driver {
 
     private static final String PROPERTY_VPC_ENDPOINT_REGION = "vpcEndpointRegion";
 
+    /**
+     * The system property name of cache item TTL
+     */
+    public static final String PROPERTY_CACHE_ITEM_TTL = "secretsmanagerCacheItemTTL";
+
+    /**
+     * The environment variable name of cache item TTL
+     */
+    public static final String DRIVERS_SECRETSMANAGER_CACHE_ITEM_TTL = "DRIVERS_SECRETSMANAGER_CACHE_ITEM_TTL";
+
     private SecretCache secretCache;
 
     private String realDriverClass;
@@ -125,7 +136,22 @@ public abstract class AWSSecretsManagerDriver implements Driver {
      * Instantiates the secret cache with default options.
      */
     protected AWSSecretsManagerDriver() {
-        this(new SecretCache());
+        final Config config = Config.loadMainConfig();
+        String vpcEndpointUrl = config.getStringPropertyWithDefault(PROPERTY_PREFIX+"."+PROPERTY_VPC_ENDPOINT_URL, null);
+        String vpcEndpointRegion = config.getStringPropertyWithDefault(PROPERTY_PREFIX+"."+PROPERTY_VPC_ENDPOINT_REGION, null);
+        long cacheItemTTL = getCacheItemTTL();
+
+        if (vpcEndpointUrl == null || vpcEndpointUrl.isEmpty() || vpcEndpointRegion == null || vpcEndpointRegion.isEmpty()) {
+            setSecretCache(cacheItemTTL, null);
+        } else {
+            AWSSecretsManagerClientBuilder builder = AWSSecretsManagerClientBuilder.standard();
+            builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(vpcEndpointUrl, vpcEndpointRegion));
+
+            setSecretCache(cacheItemTTL, builder.build());
+        }
+
+        setProperties();
+        AWSSecretsManagerDriver.register(this);
     }
 
     /**
@@ -135,20 +161,7 @@ public abstract class AWSSecretsManagerDriver implements Driver {
      * @param cache                                             Secret cache to use to retrieve secrets
      */
     protected AWSSecretsManagerDriver(SecretCache cache) {
-
-        final Config config = Config.loadMainConfig();
-
-        String vpcEndpointUrl = config.getStringPropertyWithDefault(PROPERTY_PREFIX+"."+PROPERTY_VPC_ENDPOINT_URL, null);
-        String vpcEndpointRegion = config.getStringPropertyWithDefault(PROPERTY_PREFIX+"."+PROPERTY_VPC_ENDPOINT_REGION, null);
-
-        if (vpcEndpointUrl == null || vpcEndpointUrl.isEmpty() || vpcEndpointRegion == null || vpcEndpointRegion.isEmpty()) {
-            this.secretCache = cache;
-        } else {
-            AWSSecretsManagerClientBuilder builder = AWSSecretsManagerClientBuilder.standard();
-            builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(vpcEndpointUrl, vpcEndpointRegion));
-
-            this.secretCache = new SecretCache(builder);
-        }
+        this.secretCache = cache;
 
         setProperties();
         AWSSecretsManagerDriver.register(this);
@@ -186,8 +199,6 @@ public abstract class AWSSecretsManagerDriver implements Driver {
 
     /**
      * Sets general configuration properties that are unrelated to the API client.
-     *
-     * @param config                                            The main configuration for this driver.
      */
     private void setProperties() {
         this.config = Config.loadMainConfig().getSubconfig(PROPERTY_PREFIX + "." + getPropertySubprefix());
@@ -196,6 +207,30 @@ public abstract class AWSSecretsManagerDriver implements Driver {
             return;
         }
         this.realDriverClass = this.config.getStringPropertyWithDefault("realDriverClass", getDefaultDriverClass());
+    }
+
+    /**
+     * Sets the secret cache to the cache that was passed in.
+     *
+     * @param cacheItemTTL The TTL for cached items before requiring a refresh.
+     * @param client he AWS Secrets Manager client.
+     */
+    private void setSecretCache(long cacheItemTTL, AWSSecretsManager client) {
+        SecretCacheConfiguration secretCacheConfiguration = new SecretCacheConfiguration();
+        secretCacheConfiguration.setCacheItemTTL(cacheItemTTL);
+        if (client != null) {
+            secretCacheConfiguration.setClient(client);
+        }
+        this.secretCache = new SecretCache(secretCacheConfiguration);
+    }
+
+    private long getCacheItemTTL() {
+        String envCacheItemTTL = System.getenv(DRIVERS_SECRETSMANAGER_CACHE_ITEM_TTL);
+        if (envCacheItemTTL != null) {
+            return Long.parseLong(envCacheItemTTL);
+        }
+        return config.getLongPropertyWithDefault(
+                PROPERTY_PREFIX+"."+PROPERTY_CACHE_ITEM_TTL, TimeUnit.HOURS.toMillis(1L));
     }
 
     /**
