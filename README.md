@@ -18,11 +18,13 @@ After you've downloaded the code from GitHub, you can build it using Maven. To d
 ## Usage
 The recommended way to use the SQL Connection Library is to consume it from Maven.  The latest released version can be found at: https://mvnrepository.com/artifact/io.github.kuraun/aws-secretsmanager-jdbc
 
+WARNING: Do not use version `1.0.7` cause getCacheTTL throws NPE
+
 ``` xml
 <dependency>
     <groupId>io.github.kuraun</groupId>
     <artifactId>aws-secretsmanager-jdbc</artifactId>
-    <version>1.0.7</version>
+    <version>1.0.8-M1</version>
 </dependency>
 ```
 
