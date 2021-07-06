@@ -139,7 +139,7 @@ public abstract class AWSSecretsManagerDriver implements Driver {
         final Config config = Config.loadMainConfig();
         String vpcEndpointUrl = config.getStringPropertyWithDefault(PROPERTY_PREFIX+"."+PROPERTY_VPC_ENDPOINT_URL, null);
         String vpcEndpointRegion = config.getStringPropertyWithDefault(PROPERTY_PREFIX+"."+PROPERTY_VPC_ENDPOINT_REGION, null);
-        long cacheItemTTL = getCacheItemTTL();
+        long cacheItemTTL = getCacheItemTTL(config);
 
         if (vpcEndpointUrl == null || vpcEndpointUrl.isEmpty() || vpcEndpointRegion == null || vpcEndpointRegion.isEmpty()) {
             setSecretCache(cacheItemTTL, null);
@@ -224,7 +224,7 @@ public abstract class AWSSecretsManagerDriver implements Driver {
         this.secretCache = new SecretCache(secretCacheConfiguration);
     }
 
-    private long getCacheItemTTL() {
+    private long getCacheItemTTL(final Config config) {
         String envCacheItemTTL = System.getenv(DRIVERS_SECRETSMANAGER_CACHE_ITEM_TTL);
         if (envCacheItemTTL != null) {
             return Long.parseLong(envCacheItemTTL);
