@@ -86,6 +86,8 @@ import java.util.logging.Logger;
  */
 public abstract class AWSSecretsManagerDriver implements Driver {
 
+    private static final Logger logger = Logger.getLogger(AWSSecretsManagerDriver.class.getName());
+
     /**
      * "jdbc-secretsmanager", so the JDBC URL should start with "jdbc-secretsmanager" instead of just "jdbc".
      */
@@ -140,6 +142,7 @@ public abstract class AWSSecretsManagerDriver implements Driver {
         String vpcEndpointUrl = config.getStringPropertyWithDefault(PROPERTY_PREFIX+"."+PROPERTY_VPC_ENDPOINT_URL, null);
         String vpcEndpointRegion = config.getStringPropertyWithDefault(PROPERTY_PREFIX+"."+PROPERTY_VPC_ENDPOINT_REGION, null);
         long cacheItemTTL = getCacheItemTTL(config);
+        logger.info("set cacheItemTTL to " + cacheItemTTL);
 
         if (vpcEndpointUrl == null || vpcEndpointUrl.isEmpty() || vpcEndpointRegion == null || vpcEndpointRegion.isEmpty()) {
             setSecretCache(cacheItemTTL, null);
@@ -375,6 +378,7 @@ public abstract class AWSSecretsManagerDriver implements Driver {
             throws SQLException, InterruptedException {
         int retryCount = 0;
         while (retryCount++ <= MAX_RETRY) {
+            logger.info("get secret string with secretId: [" + credentialsSecretId + "]");
             String secretString = secretCache.getSecretString(credentialsSecretId);
             Properties updatedInfo = new Properties(info);
             try {
@@ -390,10 +394,13 @@ public abstract class AWSSecretsManagerDriver implements Driver {
                 return getWrappedDriver().connect(unwrappedUrl, updatedInfo);
             } catch (Exception e) {
                 if (isExceptionDueToAuthenticationError(e)) {
+                    logger.info("refresh secret string with secretId: [" + credentialsSecretId + "]");
                     boolean refreshSuccess = this.secretCache.refreshNow(credentialsSecretId);
                     if (!refreshSuccess) {
+                        logger.warning("failed refresh secret string");
                         throw(e);
                     }
+                    logger.info("succeed refresh secret string");
                 }
                 else {
                     throw(e);
