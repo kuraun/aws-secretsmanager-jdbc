@@ -43,3 +43,11 @@ spring:
 
 
 ```
+
+* To change cache item ttl using the environment variable that
+  
+  set the unit in milliseconds `DRIVERS_SECRETSMANAGER_CACHE_ITEM_TTL` of environment variable or
+  
+  add `drivers.secretsmanagerCacheItemTTL` of a property to `secretsmanager.properties`
+  
+  
